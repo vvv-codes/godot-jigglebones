@@ -1,16 +1,16 @@
-tool
-extends Spatial
+@tool
+extends Node3D
 
 enum Axis {
 	X_Plus, Y_Plus, Z_Plus, X_Minus, Y_Minus, Z_Minus
 }
 
-export (String) var bone_name
-export(float, 0.1, 100, 0.1) var stiffness = 1
-export(float, 0, 100, 0.1) var damping = 0
-export var use_gravity = false
-export var gravity = Vector3(0, -9.81, 0)
-export(Axis) var forward_axis = Axis.Z_Minus
+@export var bone_name: String
+@export var stiffness: float = 1
+@export var damping: float = 0
+@export var use_gravity = false
+@export var gravity = Vector3(0, -9.81, 0)
+@export var forward_axis: Axis = Axis.Z_Minus
 
 # Previous position
 var prev_pos = Vector3()
@@ -31,18 +31,18 @@ func get_bone_forward_local():
 		Axis.Z_Minus: return Vector3(0,0,-1) 
 
 func _ready():
-	set_as_toplevel(true)  # Ignore parent transformation
+	set_as_top_level(true)  # Ignore parent transformation
 	prev_pos = global_transform.origin
 
 func _process(delta):
 	
 	var skeleton = get_parent()
 	
-	if !(skeleton is Skeleton):
+	if !skeleton.is_class("Skeleton3D"):
 		jiggleprint("Jigglebone must be a direct child of a Skeleton node")
 		return
 	
-	if !bone_name:
+	if bone_name.is_empty():
 		jiggleprint("Please enter a bone name")
 		return
 	
@@ -71,7 +71,7 @@ func _process(delta):
 	############### Integrate velocity (Verlet integration) ##############	
 	
 	# If not using gravity, apply force in the direction of the bone (so it always wants to point "forward")
-	var grav = bone_transf_rest_world.basis.xform(Vector3(0, 0, -1)).normalized() * 9.81
+	var grav = (bone_transf_rest_world.basis * Vector3(0, 0, -1)).normalized() * 9.81
 	var vel = (global_transform.origin - prev_pos) / delta
 	
 	if use_gravity:
@@ -92,7 +92,7 @@ func _process(delta):
 	
 	############## Rotate the bone to point to this object #############
 
-	var diff_vec_local = bone_transf_world.affine_inverse().xform(global_transform.origin).normalized() 
+	var diff_vec_local = (bone_transf_world.affine_inverse() * global_transform.origin).normalized() 
 	
 	var bone_forward_local = get_bone_forward_local()
 
@@ -106,11 +106,11 @@ func _process(delta):
 	bone_rotate_axis = bone_rotate_axis.normalized()
 
 	# Bring the axis to object space, WITHOUT translation (so only the BASIS is used) since vectors shouldn't be translated
-	var bone_rotate_axis_obj = bone_transf_obj.basis.xform(bone_rotate_axis).normalized()
-	var bone_new_transf_obj = Transform(bone_transf_obj.basis.rotated(bone_rotate_axis_obj, bone_rotate_angle), bone_transf_obj.origin)  
+	var bone_rotate_axis_obj = (bone_transf_obj.basis * bone_rotate_axis).normalized()
+	var bone_new_transf_obj = Transform3D(bone_transf_obj.basis.rotated(bone_rotate_axis_obj, bone_rotate_angle), bone_transf_obj.origin)  
 
-	if is_nan(bone_new_transf_obj[0][0]):
-		bone_new_transf_obj = Transform()  # Corrupted somehow
+	if is_nan(bone_new_transf_obj.basis[0][0]):
+		bone_new_transf_obj = Transform3D()  # Corrupted somehow
 
 	skeleton.set_bone_global_pose_override(bone_id, bone_new_transf_obj, 1.0, true)
 	
